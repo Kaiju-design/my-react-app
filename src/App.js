@@ -572,6 +572,7 @@ export default function TrendPulse() {
       
       // If everything failed, at least show something
       if (trends.length === 0) {
+        const timestamp = new Date().toISOString();
         const fallbackTrends = generateFallbackData(timestamp);
         setTrends(fallbackTrends);
       }
