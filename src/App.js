@@ -15,6 +15,23 @@ export default function TrendPulse() {
   const [customUrlError, setCustomUrlError] = useState('');
   const [addingCustom, setAddingCustom] = useState(false);
   const [trackedUrls, setTrackedUrls] = useState([]);
+  // --- INSERT THIS CODE AFTER LINE 17 IN src/App.js ---
+
+// Function to remove a tracked URL from state and storage
+const removeTrackedUrl = async (urlToRemove) => {
+  // 1. Filter the current list of tracked URLs
+  const updatedUrls = trackedUrls.filter(item => item.url !== urlToRemove);
+  
+  // 2. Save the new array to local storage (assuming saveCustomUrls exists)
+  await saveCustomUrls(updatedUrls); 
+  
+  // 3. Update the component state to trigger a re-render
+  setTrackedUrls(updatedUrls);
+  
+  alert(`Successfully removed tracked URL: ${urlToRemove}`);
+};
+
+// -----------------------------------------------------
   const [loadingUrls, setLoadingUrls] = useState(false);
 
   // Initialize and load historical data from storage
@@ -553,7 +570,18 @@ export default function TrendPulse() {
       
       setHistoricalData(updatedHistorical);
       await saveHistoricalData(updatedHistorical);
-      
+     // --- REPLACE THE BLOCK AROUND LINE 573 WITH THIS ---
+
+// If everything failed, at least show something
+if (trends.length === 0) {
+  // FIX: Define timestamp in this scope before using it
+  const timestamp = new Date().toISOString(); 
+  
+  const fallbackTrends = generateFallbackData(timestamp);
+  setTrends(fallbackTrends);
+}
+
+// ---------------------------------------------------- 
       setDataCollectionStatus('predicting');
       
       // Analyze and generate predictions
