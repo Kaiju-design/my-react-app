@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Zap, AlertCircle, Globe, BarChart3, Sparkles, Brain, Target, Clock, RefreshCw, ExternalLink, Database, Activity, Flame } from 'lucide-react';
 // ADD these lines at the top of src/App.js
 import { supabase } from './supabaseClient'; 
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 export default function TrendPulse() {
   // ADD this inside your TrendPulse component, near the data fetching functions
@@ -18,7 +19,6 @@ const handleSignIn = async () => {
     alert("Check your email for the magic sign-in link!");
   }
 };
-
 const handleSignOut = async () => {
   const { error } = await supabase.auth.signOut();
   if (error) {
