@@ -2,15 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { TrendingUp, Zap, AlertCircle, Globe, BarChart3, Sparkles, Brain, Target, Clock, RefreshCw, ExternalLink, Database, Activity, Flame } from 'lucide-react';
 // ADD these lines at the top of src/App.js
 import { supabase } from './supabaseClient'; 
-const USER_ID = 'static-user-1'; // Temporary ID for now
 
 export default function TrendPulse() {
+  // ADD this inside your TrendPulse component, near the data fetching functions
+const handleSignIn = async () => {
+  // Use a simple Magic Link sign-in for now (sends a link to email)
+  const email = prompt("Enter your email address to sign in (Magic Link will be sent):");
+  if (!email) return;
+
+  const { error } = await supabase.auth.signInWithOtp({ email });
+
+  if (error) {
+    alert(error.message);
+  } else {
+    alert("Check your email for the magic sign-in link!");
+  }
+};
+
+const handleSignOut = async () => {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error('Sign out error:', error);
+  } else {
+    alert("You have been signed out.");
+  }
+};
   const [activeTab, setActiveTab] = useState('discover');
   const [trends, setTrends] = useState([]);
   const [loading, setLoading] = useState(false);
-  // Add these near your other useState variables (e.g., after [loadingUrls, setLoadingUrls] = ...)
-const [session, setSession] = useState(null); 
-const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -30,19 +49,31 @@ useEffect(() => {
     setIsAuthLoading(false);
   });
 
-  // Listen for future auth changes (sign in, sign out)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (_event, session) => {
-      setSession(session);
-      setIsAuthLoading(false);
-      // When auth changes, re-fetch the user's specific URLs
-      if (session) {
-        refreshTrackedUrls(session.user.id);
-      } else {
-        setTrackedUrls([]); // Clear URLs if logged out
-      }
-    }
-  );
+// --- REPLACE your existing refreshTrackedUrls function in src/App.js ---
+const refreshTrackedUrls = async (userId) => {
+  if (!userId) { // Don't fetch if no user is logged in
+    setTrackedUrls([]);
+    return;
+  }
+  
+  setLoadingUrls(true);
+  
+  const { data, error } = await supabase
+    .from('tracked_urls')
+    .select('url')
+    .eq('user_id', userId); // <-- Use the real User ID
+
+  if (error) {
+    console.error('Supabase Error loading URLs:', error);
+    setError(error.message);
+  } else {
+    const urls = data.map(item => ({ url: item.url, active: true }));
+    setTrackedUrls(urls);
+    console.log(`Loaded ${urls.length} tracked URLs for user ${userId}.`);
+  }
+  setLoadingUrls(false);
+};
+// ------------------------------------------------------------------------
 
   // Clean up the listener when the component unmounts
   return () => subscription.unsubscribe();
@@ -209,14 +240,9 @@ useEffect(() => {
     return fallbackTrends;
   };
 
-  // Remove a tracked URL
-  const removeTrackedUrl = async (urlToRemove) => {
-    if (window.confirm('Stop tracking this URL?')) {
-      const updated = trackedUrls.filter(u => u.url !== urlToRemove);
-      await saveCustomUrls(updated);
-      setTrackedUrls(updated);
-    }
-  };
+// --- REPLACE your existing saveCustomUrls function in src/App.js ---
+// (Removed duplicate declaration to fix redeclaration error.)
+// ----------------------------------------------------------------------
 
   // Initialize and load historical data from storage
   useEffect(() => {
@@ -477,37 +503,7 @@ useEffect(() => {
         addedAt: Date.now()
       });
 
- // --- REPLACE YOUR EXISTING saveCustomUrls FUNCTION ---
-const saveCustomUrls = async (urlsToSave) => {
-  // 1. Delete all existing URLs for this user in the database (to simplify syncing)
-  const { error: deleteError } = await supabase
-    .from('tracked_urls')
-    .delete()
-    .eq('user_id', USER_ID); // Only delete this user's URLs
-
-  if (deleteError) {
-    console.error('Supabase Delete Error:', deleteError);
-    return;
-  }
-
-  // 2. Format the data to match the database table
-  const insertData = urlsToSave.map(item => ({ 
-    url: item.url, 
-    user_id: USER_ID // Add the user ID to every item
-  }));
-
-  // 3. Insert the new, full list of URLs
-  const { error: insertError } = await supabase
-    .from('tracked_urls')
-    .insert(insertData);
-  
-  if (insertError) {
-    console.error('Supabase Insert Error:', insertError);
-  } else {
-    console.log('URLs successfully saved to Supabase');
-  }
-};
-// -------------------------------------------------------------------
+      await saveCustomUrls(customUrls);
 
       // Fetch initial data for this URL
       const newTrendData = await fetchCustomUrlData(customUrl, urlType, itemId);
@@ -549,28 +545,8 @@ const saveCustomUrls = async (urlsToSave) => {
       setCustomUrl('');
       setCustomUrlError('');
       
-     // --- REPLACE YOUR EXISTING refreshTrackedUrls FUNCTION ---
-const refreshTrackedUrls = async () => {
-  setLoadingUrls(true);
-  
-  // Use the Supabase client to fetch all rows where the user_id matches
-  const { data, error } = await supabase
-    .from('tracked_urls')
-    .select('url') // Just grab the 'url' column
-    .eq('user_id', USER_ID); // Check against our static user ID
-
-  if (error) {
-    console.error('Supabase Error loading URLs:', error);
-    setError(error.message);
-  } else {
-    // Map the Supabase data ({ url: '...' }) to your component's state format ({ url: '...', active: true })
-    const urls = data.map(item => ({ url: item.url, active: true }));
-    setTrackedUrls(urls);
-    console.log(`Loaded ${urls.length} tracked URLs from Supabase.`);
-  }
-  setLoadingUrls(false);
-};
-// -------------------------------------------------------------------
+      // Refresh the tracked URLs list
+      await refreshTrackedUrls();
       
       alert('✅ URL added and analyzing! Check Discover tab to see it.');
       
@@ -949,7 +925,29 @@ const refreshTrackedUrls = async () => {
     trackedItems: Object.keys(historicalData).length
   };
 
-  return (
+return (
+  <>
+    {isAuthLoading ? (
+      <div className="text-gray-400">Loading Auth...</div>
+    ) : session ? (
+      <div className="flex items-center space-x-2">
+        <span className="text-sm text-green-400">Logged in as: {session.user.email}</span>
+        <button
+          onClick={handleSignOut}
+          className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm transition duration-150"
+        >
+          Sign Out
+        </button>
+      </div>
+    ) : (
+      <button
+        onClick={handleSignIn}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm transition duration-150"
+      >
+        Sign In / Sign Up
+      </button>
+    )}
+    {/* ---------------------------------------------------------------------- */}
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white">
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
 
@@ -1542,5 +1540,6 @@ const refreshTrackedUrls = async () => {
         )}
       </div>
     </div>
+  </>
   );
 }
