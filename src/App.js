@@ -8,6 +8,9 @@ export default function TrendPulse() {
   const [activeTab, setActiveTab] = useState('discover');
   const [trends, setTrends] = useState([]);
   const [loading, setLoading] = useState(false);
+  // Add these near your other useState variables (e.g., after [loadingUrls, setLoadingUrls] = ...)
+const [session, setSession] = useState(null); 
+const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -19,6 +22,32 @@ export default function TrendPulse() {
   const [addingCustom, setAddingCustom] = useState(false);
   const [trackedUrls, setTrackedUrls] = useState([]);
   const [loadingUrls, setLoadingUrls] = useState(false);
+  // --- ADD this new useEffect in src/App.js ---
+useEffect(() => {
+  // Set the initial session state
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setIsAuthLoading(false);
+  });
+
+  // Listen for future auth changes (sign in, sign out)
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      setSession(session);
+      setIsAuthLoading(false);
+      // When auth changes, re-fetch the user's specific URLs
+      if (session) {
+        refreshTrackedUrls(session.user.id);
+      } else {
+        setTrackedUrls([]); // Clear URLs if logged out
+      }
+    }
+  );
+
+  // Clean up the listener when the component unmounts
+  return () => subscription.unsubscribe();
+}, []);
+// ---------------------------------------------
 
   // Get related stock tickers based on trend
   const getRelatedStocks = (trend) => {
