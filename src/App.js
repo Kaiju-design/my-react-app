@@ -15,23 +15,6 @@ export default function TrendPulse() {
   const [customUrlError, setCustomUrlError] = useState('');
   const [addingCustom, setAddingCustom] = useState(false);
   const [trackedUrls, setTrackedUrls] = useState([]);
-  // --- INSERT THIS CODE AFTER LINE 17 IN src/App.js ---
-
-// Function to remove a tracked URL from state and storage
-const removeTrackedUrl = async (urlToRemove) => {
-  // 1. Filter the current list of tracked URLs
-  const updatedUrls = trackedUrls.filter(item => item.url !== urlToRemove);
-  
-  // 2. Save the new array to local storage (assuming saveCustomUrls exists)
-  await saveCustomUrls(updatedUrls); 
-  
-  // 3. Update the component state to trigger a re-render
-  setTrackedUrls(updatedUrls);
-  
-  alert(`Successfully removed tracked URL: ${urlToRemove}`);
-};
-
-// -----------------------------------------------------
   const [loadingUrls, setLoadingUrls] = useState(false);
 
   // Initialize and load historical data from storage
@@ -109,8 +92,8 @@ const removeTrackedUrl = async (urlToRemove) => {
     setCustomUrlError('');
 
     try {
-      // Determine URL type
-      let urlType = 'unknown';
+      // Determine URL type - support any URL
+      let urlType = 'generic';
       let itemId = null;
 
       if (customUrl.includes('github.com')) {
@@ -125,12 +108,28 @@ const removeTrackedUrl = async (urlToRemove) => {
         urlType = 'reddit';
         const match = customUrl.match(/comments\/([^\/]+)/);
         if (match) itemId = match[1];
+      } else if (customUrl.includes('twitter.com') || customUrl.includes('x.com')) {
+        urlType = 'twitter';
+        const match = customUrl.match(/status\/(\d+)/);
+        if (match) itemId = match[1];
+      } else if (customUrl.includes('linkedin.com')) {
+        urlType = 'linkedin';
+        itemId = customUrl;
+      } else if (customUrl.includes('youtube.com') || customUrl.includes('youtu.be')) {
+        urlType = 'youtube';
+        const match = customUrl.match(/(?:watch\?v=|youtu\.be\/)([^&\?]+)/);
+        if (match) itemId = match[1];
+      } else if (customUrl.includes('medium.com') || customUrl.includes('substack.com') || customUrl.includes('dev.to')) {
+        urlType = 'blog';
+        itemId = customUrl;
+      } else {
+        // Generic URL - accept anything
+        urlType = 'generic';
+        itemId = customUrl.replace(/https?:\/\//, '').substring(0, 50);
       }
 
       if (!itemId) {
-        setCustomUrlError('Invalid URL. Supported: GitHub repos, Hacker News posts, Reddit posts');
-        setAddingCustom(false);
-        return;
+        itemId = customUrl.replace(/https?:\/\//, '').substring(0, 50);
       }
 
       // Load existing custom URLs
@@ -227,7 +226,7 @@ const removeTrackedUrl = async (urlToRemove) => {
             name: data.name,
             description: data.description || 'Custom tracked GitHub repository',
             source: 'GitHub (Custom)',
-            sourceUrl: url,
+            sourceUrl: data.html_url,
             category: data.language || 'Technology',
             rawData: {
               stars: data.stargazers_count,
@@ -254,7 +253,7 @@ const removeTrackedUrl = async (urlToRemove) => {
             name: extractTrendFromTitle(data.title),
             description: data.title,
             source: 'Hacker News (Custom)',
-            sourceUrl: url,
+            sourceUrl: data.url || `https://news.ycombinator.com/item?id=${data.id}`,
             category: categorizeTopic(data.title),
             rawData: {
               score: data.score || 0,
@@ -282,7 +281,7 @@ const removeTrackedUrl = async (urlToRemove) => {
               name: extractTrendFromTitle(post.title),
               description: post.title,
               source: 'Reddit (Custom)',
-              sourceUrl: url,
+              sourceUrl: `https://reddit.com${post.permalink}`,
               category: categorizeTopic(post.title),
               rawData: {
                 upvotes: post.score,
@@ -296,6 +295,23 @@ const removeTrackedUrl = async (urlToRemove) => {
             };
           }
         }
+      } else {
+        // Generic URL - create basic tracking
+        return {
+          id: `custom-${type}-${Date.now()}`,
+          name: extractTrendFromTitle(url),
+          description: `Custom tracked: ${url}`,
+          source: `${type.charAt(0).toUpperCase() + type.slice(1)} (Custom)`,
+          sourceUrl: url,
+          category: 'Custom',
+          rawData: {
+            views: 0,
+            engagement: 0,
+            trackingSince: Date.now()
+          },
+          timestamp,
+          isCustom: true
+        };
       }
     } catch (e) {
       console.error(`Error fetching custom ${type} data:`, e);
@@ -446,8 +462,8 @@ const removeTrackedUrl = async (urlToRemove) => {
         console.error('HN fetch error:', e);
         // Add fallback HN topics
         const hnFallback = [
-          { id: 9001, title: 'New AI breakthrough in code generation', score: 450, descendants: 120 },
-          { id: 9002, title: 'Startup raises $50M for developer tools', score: 380, descendants: 95 }
+          { id: 9001, title: 'New AI breakthrough in code generation', score: 450, descendants: 120, url: 'https://news.ycombinator.com/item?id=9001' },
+          { id: 9002, title: 'Startup raises $50M for developer tools', score: 380, descendants: 95, url: 'https://news.ycombinator.com/item?id=9002' }
         ];
         
         hnFallback.forEach((story, idx) => {
@@ -456,7 +472,7 @@ const removeTrackedUrl = async (urlToRemove) => {
             name: extractTrendFromTitle(story.title),
             description: story.title,
             source: 'Hacker News',
-            sourceUrl: 'https://news.ycombinator.com',
+            sourceUrl: story.url,
             category: categorizeTopic(story.title),
             rawData: {
               score: story.score,
@@ -506,8 +522,8 @@ const removeTrackedUrl = async (urlToRemove) => {
         console.error('Reddit fetch error:', e);
         // Add fallback Reddit topics
         const redditFallback = [
-          { id: 'abc123', title: 'New framework for building AI agents', score: 1200, num_comments: 150, upvote_ratio: 0.95 },
-          { id: 'def456', title: 'YC startup democratizing machine learning', score: 890, num_comments: 78, upvote_ratio: 0.92 }
+          { id: 'abc123', title: 'New framework for building AI agents', score: 1200, num_comments: 150, upvote_ratio: 0.95, permalink: '/r/technology/comments/abc123/' },
+          { id: 'def456', title: 'YC startup democratizing machine learning', score: 890, num_comments: 78, upvote_ratio: 0.92, permalink: '/r/startups/comments/def456/' }
         ];
         
         redditFallback.forEach((post, idx) => {
@@ -516,7 +532,7 @@ const removeTrackedUrl = async (urlToRemove) => {
             name: extractTrendFromTitle(post.title),
             description: post.title,
             source: 'Reddit r/technology',
-            sourceUrl: 'https://reddit.com/r/technology',
+            sourceUrl: `https://reddit.com${post.permalink}`,
             category: categorizeTopic(post.title),
             rawData: {
               upvotes: post.score,
@@ -570,18 +586,7 @@ const removeTrackedUrl = async (urlToRemove) => {
       
       setHistoricalData(updatedHistorical);
       await saveHistoricalData(updatedHistorical);
-     // --- REPLACE THE BLOCK AROUND LINE 573 WITH THIS ---
-
-// If everything failed, at least show something
-if (trends.length === 0) {
-  // FIX: Define timestamp in this scope before using it
-  const timestamp = new Date().toISOString(); 
-  
-  const fallbackTrends = generateFallbackData(timestamp);
-  setTrends(fallbackTrends);
-}
-
-// ---------------------------------------------------- 
+      
       setDataCollectionStatus('predicting');
       
       // Analyze and generate predictions
@@ -600,7 +605,6 @@ if (trends.length === 0) {
       
       // If everything failed, at least show something
       if (trends.length === 0) {
-        const timestamp = new Date().toISOString();
         const fallbackTrends = generateFallbackData(timestamp);
         setTrends(fallbackTrends);
       }
@@ -1118,25 +1122,38 @@ if (trends.length === 0) {
                 <div className="mt-6 pt-6 border-t border-purple-500/20">
                   <h4 className="font-semibold text-white mb-3">✅ Supported URLs:</h4>
                   <div className="space-y-2 text-sm text-purple-200">
-                    <div className="flex items-start gap-2">
-                      <span className="text-purple-400">•</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <strong className="text-white">GitHub:</strong> https://github.com/username/repository
-                        <div className="text-purple-400 text-xs mt-1">Example: https://github.com/vercel/next.js</div>
+                        <strong className="text-white">GitHub:</strong> Repository URLs
+                        <div className="text-purple-400 text-xs mt-1">github.com/owner/repo</div>
                       </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-pink-400">•</span>
                       <div>
-                        <strong className="text-white">Hacker News:</strong> https://news.ycombinator.com/item?id=12345
-                        <div className="text-pink-400 text-xs mt-1">Example: https://news.ycombinator.com/item?id=38180477</div>
+                        <strong className="text-white">Hacker News:</strong> Post URLs
+                        <div className="text-pink-400 text-xs mt-1">news.ycombinator.com/item?id=X</div>
                       </div>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-blue-400">•</span>
                       <div>
-                        <strong className="text-white">Reddit:</strong> https://reddit.com/r/subreddit/comments/id/title
-                        <div className="text-blue-400 text-xs mt-1">Full post URL from browser address bar</div>
+                        <strong className="text-white">Reddit:</strong> Post URLs
+                        <div className="text-blue-400 text-xs mt-1">reddit.com/r/.../comments/...</div>
+                      </div>
+                      <div>
+                        <strong className="text-white">Twitter/X:</strong> Tweet URLs
+                        <div className="text-cyan-400 text-xs mt-1">twitter.com/.../status/...</div>
+                      </div>
+                      <div>
+                        <strong className="text-white">YouTube:</strong> Video URLs
+                        <div className="text-red-400 text-xs mt-1">youtube.com/watch?v=...</div>
+                      </div>
+                      <div>
+                        <strong className="text-white">LinkedIn:</strong> Post URLs
+                        <div className="text-blue-400 text-xs mt-1">linkedin.com/posts/...</div>
+                      </div>
+                      <div>
+                        <strong className="text-white">Blogs:</strong> Medium, Substack, Dev.to
+                        <div className="text-green-400 text-xs mt-1">Any article URL</div>
+                      </div>
+                      <div>
+                        <strong className="text-white">Any URL:</strong> Generic tracking
+                        <div className="text-gray-400 text-xs mt-1">We'll track what we can</div>
                       </div>
                     </div>
                   </div>
@@ -1316,10 +1333,25 @@ if (trends.length === 0) {
                         </div>
                         {trend.analysis.isAccelerating && (
                           <div className="mt-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                            <div className="text-yellow-400 font-semibold">⚡ Acceleration Detected</div>
-                            <div className="text-yellow-200 text-sm mt-1">
+                            <div className="text-yellow-400 font-semibold mb-2">⚡ Acceleration Detected</div>
+                            <div className="text-yellow-200 text-sm mb-3">
                               This trend is showing rapid growth velocity. Monitor closely for breakout.
                             </div>
+                            {getRelatedStocks(trend).length > 0 && (
+                              <div className="bg-green-500/10 border border-green-500/20 rounded p-2 mt-2">
+                                <div className="text-green-400 font-semibold text-sm mb-1">📈 Related Stock Opportunities:</div>
+                                <div className="flex flex-wrap gap-2">
+                                  {getRelatedStocks(trend).map(ticker => (
+                                    <span key={ticker} className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-mono font-bold">
+                                      ${ticker}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="text-green-300 text-xs mt-1">
+                                  Companies positioned to benefit from this trend
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1663,9 +1695,9 @@ if (trends.length === 0) {
                       <span className="text-2xl">1️⃣</span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-white mb-2">Week 1-2: Data Collection Phase</h4>
+                      <h4 className="font-bold text-white mb-2">Data Collection Phase</h4>
                       <p className="text-purple-200 mb-3">
-                        System automatically collects data every 6 hours from GitHub, Hacker News, and Reddit. 
+                        System automatically collects data every 6 hours from multiple sources. 
                         Each trend gets timestamped measurements stored persistently.
                       </p>
                       <div className="bg-black/30 rounded p-3 text-sm">
@@ -1682,7 +1714,7 @@ if (trends.length === 0) {
                       <span className="text-2xl">2️⃣</span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-white mb-2">Week 3-4: Pattern Recognition</h4>
+                      <h4 className="font-bold text-white mb-2">Pattern Recognition</h4>
                       <p className="text-blue-200 mb-3">
                         Once we have 2+ data points per trend, the system calculates velocity changes and acceleration.
                         Detects when growth rate suddenly spikes (e.g., 10 stars/day → 100 stars/day).
@@ -1702,14 +1734,14 @@ if (trends.length === 0) {
                       <span className="text-2xl">3️⃣</span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-white mb-2">Month 2-3: ML Model Training</h4>
+                      <h4 className="font-bold text-white mb-2">ML Model Training (Future)</h4>
                       <p className="text-green-200 mb-3">
                         With 30+ days of data, we can train ML models on historical patterns to predict which 
                         trends will break out 7-14 days before they go mainstream.
                       </p>
                       <div className="bg-black/30 rounded p-3 text-sm">
                         <div className="text-orange-400 mb-1">🔄 Coming Soon:</div>
-                        <div className="text-green-300">Need {Math.max(0, 30 - Math.floor((Date.now() - (historicalData[Object.keys(historicalData)[0]]?.firstSeen || Date.now())) / (1000 * 60 * 60 * 24)))} more days of data for ML training</div>
+                        <div className="text-green-300">Need more historical data for ML training</div>
                         <div className="text-purple-300 mt-2">Will implement: Random Forest, LSTM, and Gradient Boosting models</div>
                       </div>
                     </div>
@@ -1735,16 +1767,6 @@ if (trends.length === 0) {
                       <div className="text-yellow-400 font-semibold mb-1">Rising (65-74% confidence)</div>
                       <div className="text-gray-300">Steady growth with good baseline metrics</div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-r from-yellow-500/10 to-amber-500/10 border border-yellow-500/20 rounded-lg p-6">
-                  <h4 className="font-bold text-white mb-3">💰 Monetization Strategy</h4>
-                  <div className="space-y-2 text-purple-200">
-                    <p><strong className="text-white">Week 1-2:</strong> Free beta - collect testimonials and validation</p>
-                    <p><strong className="text-white">Week 3-4:</strong> Launch $49/month tier for alerts on high-confidence predictions</p>
-                    <p><strong className="text-white">Month 2:</strong> Add $199/month tier with API access and custom alerts</p>
-                    <p><strong className="text-white">Month 3:</strong> Launch $999/month enterprise with ML predictions and dedicated support</p>
                   </div>
                 </div>
               </div>
