@@ -1,32 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Zap, AlertCircle, Globe, BarChart3, Sparkles, Brain, Target, Clock, RefreshCw, ExternalLink, Database, Activity, Flame } from 'lucide-react';
-// ADD these lines at the top of src/App.js
-import { supabase } from './supabaseClient'; 
-import { SpeedInsights } from "@vercel/speed-insights/react"
 
 export default function TrendPulse() {
-  // ADD this inside your TrendPulse component, near the data fetching functions
-const handleSignIn = async () => {
-  // Use a simple Magic Link sign-in for now (sends a link to email)
-  const email = prompt("Enter your email address to sign in (Magic Link will be sent):");
-  if (!email) return;
-
-  const { error } = await supabase.auth.signInWithOtp({ email });
-
-  if (error) {
-    alert(error.message);
-  } else {
-    alert("Check your email for the magic sign-in link!");
-  }
-};
-const handleSignOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    console.error('Sign out error:', error);
-  } else {
-    alert("You have been signed out.");
-  }
-};
   const [activeTab, setActiveTab] = useState('discover');
   const [trends, setTrends] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -41,44 +16,6 @@ const handleSignOut = async () => {
   const [addingCustom, setAddingCustom] = useState(false);
   const [trackedUrls, setTrackedUrls] = useState([]);
   const [loadingUrls, setLoadingUrls] = useState(false);
-  // --- ADD this new useEffect in src/App.js ---
-useEffect(() => {
-  // Set the initial session state
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    setSession(session);
-    setIsAuthLoading(false);
-  });
-
-// --- REPLACE your existing refreshTrackedUrls function in src/App.js ---
-const refreshTrackedUrls = async (userId) => {
-  if (!userId) { // Don't fetch if no user is logged in
-    setTrackedUrls([]);
-    return;
-  }
-  
-  setLoadingUrls(true);
-  
-  const { data, error } = await supabase
-    .from('tracked_urls')
-    .select('url')
-    .eq('user_id', userId); // <-- Use the real User ID
-
-  if (error) {
-    console.error('Supabase Error loading URLs:', error);
-    setError(error.message);
-  } else {
-    const urls = data.map(item => ({ url: item.url, active: true }));
-    setTrackedUrls(urls);
-    console.log(`Loaded ${urls.length} tracked URLs for user ${userId}.`);
-  }
-  setLoadingUrls(false);
-};
-// ------------------------------------------------------------------------
-
-  // Clean up the listener when the component unmounts
-  return () => subscription.unsubscribe();
-}, []);
-// ---------------------------------------------
 
   // Get related stock tickers based on trend
   const getRelatedStocks = (trend) => {
@@ -240,9 +177,14 @@ const refreshTrackedUrls = async (userId) => {
     return fallbackTrends;
   };
 
-// --- REPLACE your existing saveCustomUrls function in src/App.js ---
-// (Removed duplicate declaration to fix redeclaration error.)
-// ----------------------------------------------------------------------
+  // Remove a tracked URL
+  const removeTrackedUrl = async (urlToRemove) => {
+    if (window.confirm('Stop tracking this URL?')) {
+      const updated = trackedUrls.filter(u => u.url !== urlToRemove);
+      await saveCustomUrls(updated);
+      setTrackedUrls(updated);
+    }
+  };
 
   // Initialize and load historical data from storage
   useEffect(() => {
@@ -258,7 +200,7 @@ const refreshTrackedUrls = async (userId) => {
     // Set up automatic collection every 6 hours
     const interval = setInterval(() => {
       fetchAndAnalyzeTrends();
-    }, 6 * 60 * 60 * 1000); // 6 hours
+    }, 60 * 60 * 1000); // 1 hour for local testing (backend handles Mon-Fri schedule)
     
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -925,29 +867,7 @@ const refreshTrackedUrls = async (userId) => {
     trackedItems: Object.keys(historicalData).length
   };
 
-return (
-  <>
-    {isAuthLoading ? (
-      <div className="text-gray-400">Loading Auth...</div>
-    ) : session ? (
-      <div className="flex items-center space-x-2">
-        <span className="text-sm text-green-400">Logged in as: {session.user.email}</span>
-        <button
-          onClick={handleSignOut}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-1 px-3 rounded text-sm transition duration-150"
-        >
-          Sign Out
-        </button>
-      </div>
-    ) : (
-      <button
-        onClick={handleSignIn}
-        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded text-sm transition duration-150"
-      >
-        Sign In / Sign Up
-      </button>
-    )}
-    {/* ---------------------------------------------------------------------- */}
+  return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white">
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30"></div>
 
@@ -986,7 +906,7 @@ return (
                 minute: '2-digit',
                 hour12: true
               })} EST</span>
-              <span className="text-green-400">• Next auto-scan in 6 hours</span>
+              <span className="text-green-400">• Auto-scans hourly (Mon-Fri)</span>
               <span className="text-blue-400">• Tracking {stats.trackedItems} items</span>
             </div>
           )}
@@ -1466,9 +1386,9 @@ return (
                 </div>
                 
                 <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg p-6">
-                  <div className="text-4xl font-bold text-green-400 mb-2">6h</div>
+                  <div className="text-4xl font-bold text-green-400 mb-2">1h</div>
                   <div className="text-green-200">Collection Interval</div>
-                  <div className="text-green-400 text-sm mt-2">Automatic updates</div>
+                  <div className="text-green-400 text-sm mt-2">Mon-Fri automatic scans</div>
                 </div>
               </div>
 
@@ -1490,7 +1410,7 @@ return (
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-purple-200">Next Collection:</span>
-                    <span className="text-green-400 font-mono">Automatic in ~6 hours</span>
+                    <span className="text-green-400 font-mono">Hourly (Mon-Fri)</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-purple-200">Data Retention:</span>
@@ -1540,6 +1460,5 @@ return (
         )}
       </div>
     </div>
-  </>
   );
 }
