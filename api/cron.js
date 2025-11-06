@@ -1,4 +1,12 @@
-import { supabase } from '../src/supabaseClient'; // Adjust path if needed
+import { supabase } from '../src/supabaseClient'; // Inside the 'try' block where the success email is sent
+
+const { data, error: emailError } = await resend.emails.send({
+  // CHANGE THIS LINE: Use the trusted Resend testing domain
+  from: 'TrendPulse Notifications <onboarding@resend.dev>', 
+  to: [ADMIN_EMAIL],
+  subject: `[TrendPulse] Hourly Scan Success: ${new Date().toLocaleTimeString()}`,
+  // ... rest of the email content
+});// Adjust path if needed
 
 // NOTE: You will need to move the fetchAndAnalyzeTrends function
 // and its required dependencies (like loadHistoricalData, etc.)
@@ -37,6 +45,15 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, message: 'Auto-scan successfully triggered.' });
 
   } catch (error) {
+    // Inside the 'catch' block where the failure email is sent
+
+await resend.emails.send({
+  // CHANGE THIS LINE: Use the trusted Resend testing domain
+  from: 'TrendPulse Notifications <onboarding@resend.dev>',
+  to: [ADMIN_EMAIL],
+  subject: `[TrendPulse] CRITICAL FAILURE: Hourly Scan Failed!`,
+  // ... rest of the email content
+});
     console.error('Cron job failed:', error);
     res.status(500).json({ success: false, message: 'Cron job execution failed', error: error.message });
   }
