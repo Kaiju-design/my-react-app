@@ -204,7 +204,7 @@ export default function TrendPulse() {
     
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session]);
+  }, []);
 
   // Refresh tracked URLs list
   const refreshTrackedUrls = async () => {
@@ -500,30 +500,11 @@ export default function TrendPulse() {
     }
   };
 
-// Main data collection and analysis function
+  // Main data collection and analysis function
   const fetchAndAnalyzeTrends = async () => {
     setLoading(true);
     setError(null);
     setDataCollectionStatus('collecting');
-
-  // Find and replace your fetchAndAnalyzeTrends function definition:
-const fetchAndAnalyzeTrends = async (userId) => { // ADD userId parameter
-    if (!userId) { // Check if a user is logged in
-        console.log("Not fetching trends, user is not logged in.");
-        setTrends([]); // Clear old data
-        return; 
-    }
-    
-    // ... rest of your function code ...
-
-    // When you call loadHistoricalData, pass the userId
-    // await loadHistoricalData(userId); 
-
-    // When you save the new data, make sure the save function accepts and uses userId
-    // await saveNewTrends(newTrends, userId);
-
-    // ... continue with the rest of the function ...
-};
     
     try {
       const trendData = [];
